@@ -1,0 +1,216 @@
+/* ==========================================================================
+   AnoPick FX : couche d'amélioration progressive.
+   Inspirée de Magic UI (border beam, magic card, shimmer), Motion Primitives
+   (tilt, spotlight, magnetic, text effect) et Aceternity UI (spotlight).
+   Aucun sélecteur existant n'est modifié : tout est additif.
+   Les règles globales `.reduce-motion` et `prefers-reduced-motion` de l'app
+   coupent déjà animations et transitions ; on ajoute seulement les cas
+   particuliers (éléments purement décoratifs masqués).
+   ========================================================================== */
+
+/* ---------- 1. Border beam sur la carte d'import (Magic UI) -------------- */
+@property --fx-angle{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes fx-spin{to{--fx-angle:360deg}}
+
+.import-card::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;z-index:2;
+  background:conic-gradient(from var(--fx-angle),transparent 0deg 232deg,var(--accent) 292deg,#9F79EF 322deg,var(--coral) 348deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  animation:fx-spin 7s linear infinite;opacity:.9
+}
+html[data-theme=dark] .import-card::after{opacity:1}
+html.fx-paused .import-card::after{animation-play-state:paused}
+html.reduce-motion .import-card::after{animation:none;opacity:.55}
+
+/* ---------- 2. Texte dégradé animé sur « Tes couleurs. » ------------------ */
+/* Les deux extrémités gardent un contraste ≥ 3:1 (texte large) en clair et en sombre. */
+@keyframes fx-flow{to{background-position:100% 0}}
+.hero-accent{
+  background:linear-gradient(100deg,var(--accent-text) 0%,var(--coral) 46%,var(--accent-text) 92%);
+  background-size:230% 100%;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:fx-flow 9s ease-in-out infinite alternate
+}
+html.reduce-motion .hero-accent{animation:none;background-position:0 0}
+.fx-w{display:inline-block}
+
+/* ---------- 3. Spotlight / Magic Card : halo qui suit le curseur --------- */
+.fx-glow{isolation:isolate}
+.fx-rel{position:relative}
+.fx-glow::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;opacity:0;
+  background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),var(--fx-glow,rgba(90,60,240,.13)),transparent 68%);
+  transition:opacity .3s var(--ease)
+}
+html[data-theme=dark] .fx-glow{--fx-glow:rgba(185,172,255,.14)}
+.tool-card.fx-glow,.hero.fx-glow{--fx-glow:rgba(255,255,255,.22)}
+@media (hover:hover){.fx-glow:hover::after{opacity:1}}
+html.reduce-motion .fx-glow::after{display:none}
+/* La carte d'import réserve ::after au beam : son halo passe par ::before.
+   Sans curseur (--mx hors champ) le rendu reste identique à l'original. */
+.import-card::before{background:
+  radial-gradient(260px circle at var(--mx,-999px) var(--my,-999px),rgba(159,121,239,.17),transparent 70%),
+  radial-gradient(ellipse at 4% 0%,rgba(159,121,239,.075),transparent 62%),
+  radial-gradient(ellipse at 100% 100%,rgba(255,139,110,.07),transparent 54%)}
+
+/* ---------- 4. Reflet « shimmer » sur les boutons principaux ------------- */
+@keyframes fx-shine{0%,62%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+#pickBtn,#showExport{position:relative;overflow:hidden;isolation:isolate}
+#pickBtn::after,#showExport::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.34) 50%,transparent 62%);
+  transform:translateX(-130%);animation:fx-shine 5.5s ease-in-out 1.6s infinite
+}
+html.fx-paused #pickBtn::after,html.fx-paused #showExport::after{animation-play-state:paused}
+html.reduce-motion #pickBtn::after,html.reduce-motion #showExport::after{display:none}
+
+/* ---------- 5. Tilt de la carte d'import (variables pilotées par Motion) -- */
+/* Le magnétisme des boutons anime directement la propriété `translate` : rien à déclarer ici. */
+.import-card[data-fx-tilting]{transform:perspective(1000px) rotateX(var(--fx-rx,0deg)) rotateY(var(--fx-ry,0deg));transform-style:flat}
+
+/* ---------- 6. Barre de progression de lecture (Magic UI) ---------------- */
+.fx-progress{
+  position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);height:3px;z-index:60;pointer-events:none;
+  transform-origin:0 50%;transform:scaleX(0);opacity:0;
+  background:linear-gradient(90deg,var(--accent),#9F79EF,var(--coral));
+  transition:opacity .25s
+}
+.fx-progress.on{opacity:1}
+
+/* ---------- 7. Scène 3D (Three.js) : remplace les 5 pastilles CSS -------- */
+.fx-stage{position:relative;height:0;overflow:hidden;opacity:0;pointer-events:none;margin:0;
+  transition:height .7s var(--ease),margin .7s var(--ease),opacity .5s .15s}
+.fx-stage canvas{display:block;width:100%;height:100%;touch-action:pan-y}
+.import-card.fx-3d-on .fx-stage{height:112px;margin:-6px 0 12px;opacity:1;pointer-events:auto;cursor:pointer}
+.import-card.fx-3d-on .import-slots{height:0;margin:0;opacity:0;overflow:hidden;
+  transition:height .6s var(--ease),margin .6s var(--ease),opacity .25s}
+@media(max-width:680px){.import-card.fx-3d-on .fx-stage{height:96px}}
+@media(forced-colors:active){.fx-stage,.fx-progress{display:none}}
+
+/* ---------- 8. Lenis (défilement fluide) : règles officielles minimales -- */
+html.lenis,html.lenis body{height:auto}
+.lenis.lenis-smooth{scroll-behavior:auto!important}
+.lenis.lenis-smooth [data-lenis-prevent]{overscroll-behavior:contain}
+.lenis.lenis-stopped{overflow:clip}
+.lenis.lenis-scrolling iframe{pointer-events:none}
+
+/* ---------- 9. Contraste forcé : on retire les effets purement décoratifs - */
+@media(forced-colors:active){
+  .import-card::after,.fx-glow::after,#pickBtn::after,#showExport::after{display:none}
+  .hero-accent{background:none;-webkit-text-fill-color:currentColor;color:CanvasText;animation:none}
+}
+
+/* ==========================================================================
+   10. Présentation d'accueil (première visite) : 3 écrans, rejouable
+   ========================================================================== */
+.fx-intro{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;
+  background:transparent;color:var(--text);overflow:hidden}
+.fx-intro::backdrop{background:rgba(14,11,30,.58);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.fx-intro-shell{position:absolute;inset:0;display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+.fx-intro-card{position:relative;width:min(100%,520px);max-height:100%;overflow:auto;border-radius:28px;
+  background:var(--card);border:1px solid var(--border);box-shadow:var(--lift);display:flex;flex-direction:column}
+.fx-intro-stage{position:relative;flex:none;height:188px;display:grid;place-items:center;overflow:hidden;
+  background:var(--hero);color:#fff}
+.fx-intro-stage::before,.fx-intro-stage::after{content:'';position:absolute;border-radius:50%;pointer-events:none;filter:blur(2px)}
+.fx-intro-stage::before{width:220px;height:220px;left:-70px;top:-110px;background:radial-gradient(circle,rgba(255,255,255,.2),transparent 68%)}
+.fx-intro-stage::after{width:240px;height:240px;right:-90px;bottom:-130px;background:radial-gradient(circle,rgba(255,139,110,.4),transparent 68%)}
+.fx-intro-copy{padding:24px 26px 6px}
+.fx-intro-kicker{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);margin:0 0 8px}
+.fx-intro-copy h2{font:800 clamp(24px,5.6vw,30px)/1.15 var(--display);letter-spacing:-.035em;margin:0 0 10px}
+.fx-intro-text{color:var(--text2);font-size:15px;line-height:1.6}
+.fx-intro-text p{margin:0}
+.fx-intro-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 26px 24px}
+.fx-intro-dots{display:flex;gap:6px;align-items:center}
+.fx-intro-dots i{display:block;width:8px;height:8px;border-radius:99px;background:var(--border);transition:width .35s var(--ease),background .25s}
+.fx-intro-dots i.on{width:26px;background:linear-gradient(90deg,var(--accent),var(--coral))}
+.fx-intro-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
+.fx-intro-actions .btn{min-height:46px}
+.fx-intro-actions [hidden]{display:none}
+
+/* Illustrations des écrans */
+.fx-fan{position:relative;display:flex;align-items:flex-end;gap:10px;z-index:1}
+.fx-fan i{display:block;width:46px;border-radius:15px;border:1px solid rgba(255,255,255,.35);box-shadow:0 10px 24px rgba(10,5,40,.3)}
+.fx-fan i:nth-child(1){height:70px;background:#E1DAFC;rotate:-12deg}
+.fx-fan i:nth-child(2){height:92px;background:#AC97F3;rotate:-5deg}
+.fx-fan i:nth-child(3){height:108px;background:#5A3CF0;rotate:2deg;border-color:rgba(255,255,255,.55)}
+.fx-fan i:nth-child(4){height:88px;background:#FF8B6E;rotate:8deg}
+.fx-fan i:nth-child(5){height:66px;background:#FFE5DF;rotate:14deg}
+.fx-steps{position:relative;z-index:1;display:flex;align-items:flex-start;gap:0;width:min(100%,420px);padding:0 18px}
+.fx-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;font-size:12px;font-weight:700;letter-spacing:.02em}
+.fx-step .node{width:60px;height:60px;border-radius:20px;display:grid;place-items:center;background:rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 10px 24px rgba(10,5,40,.25)}
+.fx-step .node .i{width:26px;height:26px}
+.fx-step:not(:last-child)::after{content:'';position:absolute;top:30px;left:calc(50% + 38px);right:calc(-50% + 38px);height:0;
+  border-top:2px dashed rgba(255,255,255,.5)}
+.fx-person{position:relative;z-index:1;display:grid;place-items:center;width:112px;height:112px}
+.fx-person::before{content:'';position:absolute;inset:0;border-radius:40px;padding:2px;pointer-events:none;
+  background:conic-gradient(from var(--fx-angle),transparent 0 200deg,#fff 300deg,var(--coral) 345deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:fx-spin 5s linear infinite}
+.fx-person span{display:grid;place-items:center;width:92px;height:92px;border-radius:30px;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.4);box-shadow:0 14px 30px rgba(10,5,40,.35)}
+.fx-person svg{width:54px;height:54px}
+html.reduce-motion .fx-person::before{animation:none}
+.fx-intro-list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.fx-intro-list li{display:flex;gap:12px;align-items:flex-start}
+.fx-intro-list b{display:block;color:var(--text);font-size:15px}
+.fx-intro-list small{display:block;color:var(--muted);font-size:13.5px;line-height:1.5}
+.fx-intro-list .num{flex:none;width:28px;height:28px;border-radius:10px;display:grid;place-items:center;background:var(--soft);
+  color:var(--accent-text);font:700 13px var(--display)}
+@media(max-width:420px){.fx-intro-stage{height:164px}.fx-fan i{width:40px}.fx-intro-copy{padding:20px 20px 4px}.fx-intro-foot{padding:16px 20px 20px}
+  .fx-intro-actions{width:100%;justify-content:space-between;margin-left:0}.fx-intro-dots{width:100%;justify-content:center}}
+@media(forced-colors:active){.fx-intro-stage{background:Canvas;border-bottom:1px solid CanvasText;color:CanvasText}.fx-person::before{display:none}}
+
+/* ==========================================================================
+   11. Le développeur et ses moyens de contact
+   ========================================================================== */
+.fx-dev{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px 20px;align-items:center;padding:24px;position:relative;overflow:hidden}
+.fx-dev::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at 0% 0%,rgba(159,121,239,.12),transparent 55%),radial-gradient(ellipse at 100% 100%,rgba(255,139,110,.1),transparent 55%)}
+.fx-dev{isolation:isolate}
+.fx-dev-avatar{width:68px;height:68px;border-radius:22px;display:grid;place-items:center;background:var(--hero);box-shadow:0 10px 26px rgba(70,40,200,.28)}
+.fx-dev-avatar svg{width:38px;height:38px}
+.fx-dev-id{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fx-dev-name{font:800 24px/1.1 var(--display);letter-spacing:-.03em}
+.fx-dev-role{font-size:14px;color:var(--text2)}
+.fx-dev-id .pill{align-self:flex-start;margin-top:4px}
+.fx-dev-pitch{grid-column:1/-1;color:var(--text2);font-size:15px;line-height:1.6;margin:0;max-width:62ch}
+.fx-dev-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px}
+.fx-dev-actions .btn{min-height:48px}
+.fx-dev-actions .btn .i{width:20px;height:20px}
+.fx-dev-actions a.is-todo{cursor:not-allowed}
+.fx-dev-section.compact{margin-top:28px}
+@media(max-width:520px){.fx-dev{padding:20px;grid-template-columns:1fr;justify-items:start}.fx-dev-actions{width:100%}.fx-dev-actions .btn{flex:1 1 100%}}
+
+/* ==========================================================================
+   12. Transitions entre pages : le « fantôme » de la page quittée
+   ========================================================================== */
+.fx-ghost{position:fixed;z-index:20;margin:0;pointer-events:none;overflow:hidden;contain:paint;will-change:transform,opacity}
+html.reduce-motion .fx-ghost{display:none}
+
+/* ==========================================================================
+   13. Finition mobile : actions de la palette, lisibilité, saisie tactile
+   ========================================================================== */
+html{scroll-padding-bottom:calc(var(--nav,64px) + 28px)}
+button,.btn,.icon-btn,.seg button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+@media(max-width:680px){
+  /* « Exporter » passe sur sa propre ligne au lieu d'être écrasé à 55 px */
+  .palette-header .palette-actions .btn-primary{flex:1 1 100%;min-height:48px;justify-content:center;white-space:nowrap}
+  .palette-header .palette-actions .btn-line{flex:1 1 0;min-width:0;justify-content:center;white-space:nowrap}
+  /* textes secondaires lisibles (12 px minimum) */
+  .swatch-name,.swatch-meta .note,.result-badge{font-size:12px}
+  /* « 1fr » seul laisse un contenu large pousser la grille hors de l'écran (Labo à 320 px) */
+  .lab-layout,.settings-grid{grid-template-columns:minmax(0,1fr)}
+  /* iOS zoome la page si un champ fait moins de 16 px */
+  input:not([type=range]):not([type=color]):not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{font-size:16px}
+}
+
+/* ==========================================================================
+   14. Transitions : jamais de débordement latéral
+   Les éléments qui glissent depuis le côté élargissaient la page de ~23 px pendant
+   la transition ; les navigateurs mobiles agrandissaient alors leur zone d'affichage
+   et la barre du bas sautait de ~48 px. « clip » coupe sans créer de zone de défilement.
+   ========================================================================== */
+html,body,main{overflow-x:clip}

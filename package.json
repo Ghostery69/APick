@@ -1,0 +1,7 @@
+{
+  "name": "anopick-fx",
+  "private": true,
+  "description": "Couche d'effets (Motion, Lenis, Three.js) d'AnoPick, en TypeScript",
+  "scripts": { "build": "node build.mjs original.html ../app.html" },
+  "devDependencies": { "typescript": "^5.6.0" }
+}
